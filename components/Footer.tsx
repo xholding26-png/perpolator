@@ -7,9 +7,7 @@ export default function Footer() {
         <span className="font-mono">PERPOLATOR © 2026</span>
         <div className="flex gap-6">
           <Link href="/markets" className="hover:text-white transition-colors">Markets</Link>
-          <Link href="https://docs.perpolator.com" className="hover:text-white transition-colors">Docs</Link>
-          <Link href="https://twitter.com/perpolator" className="hover:text-white transition-colors">Twitter</Link>
-          <Link href="https://github.com/perpolator" className="hover:text-white transition-colors">GitHub</Link>
+          <Link href="https://x.com/perpolator" target="_blank" rel="noopener" className="hover:text-white transition-colors">𝕏</Link>
         </div>
       </div>
     </footer>
