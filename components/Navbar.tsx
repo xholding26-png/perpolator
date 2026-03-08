@@ -2,7 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { cn } from '@/lib/utils';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { useWalletModal } from '@solana/wallet-adapter-react-ui';
+import { useEffect } from 'react';
+import { cn, shortenAddress } from '@/lib/utils';
+import { useAppStore } from '@/lib/store';
+import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 
 const NAV_LINKS = [
   { href: '/markets', label: 'Markets' },
@@ -44,8 +49,52 @@ export default function Navbar() {
 }
 
 function ConnectButton() {
+  const { publicKey, connected, disconnect } = useWallet();
+  const { connection } = useConnection();
+  const { setVisible } = useWalletModal();
+  const { setWallet, balance } = useAppStore();
+
+  // Fetch real SOL balance when wallet connects
+  useEffect(() => {
+    if (connected && publicKey) {
+      const fetchBalance = async () => {
+        try {
+          const bal = await connection.getBalance(publicKey);
+          setWallet(true, publicKey.toBase58(), bal / LAMPORTS_PER_SOL);
+        } catch (err) {
+          console.error('Balance fetch error:', err);
+          setWallet(true, publicKey.toBase58(), 0);
+        }
+      };
+      fetchBalance();
+      const interval = setInterval(fetchBalance, 15000);
+      return () => clearInterval(interval);
+    } else {
+      setWallet(false, null, 0);
+    }
+  }, [connected, publicKey, connection, setWallet]);
+
+  if (connected && publicKey) {
+    return (
+      <div className="flex items-center gap-3">
+        <span className="text-[11px] font-mono text-[#666]">
+          {balance.toFixed(3)} SOL
+        </span>
+        <button
+          onClick={disconnect}
+          className="text-xs border border-white/[0.06] px-4 py-1.5 hover:bg-white/[0.04] transition-colors font-mono text-white"
+        >
+          {shortenAddress(publicKey.toBase58())}
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <button className="text-xs border border-white/[0.06] px-4 py-1.5 hover:bg-white/[0.04] transition-colors font-mono">
+    <button
+      onClick={() => setVisible(true)}
+      className="text-xs border border-white/[0.06] px-4 py-1.5 hover:bg-white/[0.04] transition-colors font-mono"
+    >
       Connect Wallet
     </button>
   );

@@ -1,15 +1,25 @@
 'use client';
 
 import Link from 'next/link';
-import { MOCK_MARKETS } from '@/lib/mock-data';
-import { formatUsd, formatPercent } from '@/lib/utils';
+import { useAppStore } from '@/lib/store';
 import Footer from '@/components/Footer';
 
 export default function MyMarketsPage() {
-  // Mock: pretend first 3 markets are "yours"
-  const myMarkets = MOCK_MARKETS.slice(0, 3);
-  const totalRevenue = 12_340;
-  const totalVolume = myMarkets.reduce((acc, m) => acc + m.volume24h, 0);
+  const { connected } = useAppStore();
+
+  // Real "my markets" would be filtered by creator === connected wallet
+  // For now, show empty state since no markets have been created
+
+  if (!connected) {
+    return (
+      <div className="min-h-[calc(100vh-48px)] flex flex-col">
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-[#444] font-mono text-sm">Connect your wallet to view your markets</p>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[calc(100vh-48px)] flex flex-col">
@@ -20,57 +30,27 @@ export default function MyMarketsPage() {
         <div className="grid grid-cols-3 gap-4 mb-8">
           <div className="border border-white/[0.06] bg-[#080808] p-4">
             <div className="text-[10px] text-[#666] uppercase tracking-wider">Markets Created</div>
-            <div className="text-2xl font-mono font-bold text-white mt-1">{myMarkets.length}</div>
+            <div className="text-2xl font-mono font-bold text-white mt-1">0</div>
           </div>
           <div className="border border-white/[0.06] bg-[#080808] p-4">
             <div className="text-[10px] text-[#666] uppercase tracking-wider">Total Revenue</div>
-            <div className="text-2xl font-mono font-bold text-[#00ff88] mt-1">{formatUsd(totalRevenue)}</div>
+            <div className="text-2xl font-mono font-bold text-white mt-1">—</div>
           </div>
           <div className="border border-white/[0.06] bg-[#080808] p-4">
             <div className="text-[10px] text-[#666] uppercase tracking-wider">Total Volume</div>
-            <div className="text-2xl font-mono font-bold text-white mt-1">{formatUsd(totalVolume)}</div>
+            <div className="text-2xl font-mono font-bold text-white mt-1">—</div>
           </div>
         </div>
 
-        {/* Markets list */}
-        <div className="border border-white/[0.06]">
-          <table className="w-full text-[11px] font-mono">
-            <thead>
-              <tr className="text-[#666] text-left border-b border-white/[0.06]">
-                <th className="px-4 py-3 font-normal">Market</th>
-                <th className="px-4 py-3 font-normal text-right">Volume (24h)</th>
-                <th className="px-4 py-3 font-normal text-right">Open Interest</th>
-                <th className="px-4 py-3 font-normal text-right">Traders</th>
-                <th className="px-4 py-3 font-normal text-right">Change (24h)</th>
-                <th className="px-4 py-3 font-normal text-right">Revenue</th>
-                <th className="px-4 py-3 font-normal text-right"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {myMarkets.map((market, i) => (
-                <tr key={market.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
-                  <td className="px-4 py-3 text-white text-sm">{market.symbol}</td>
-                  <td className="px-4 py-3 text-right text-white">{formatUsd(market.volume24h)}</td>
-                  <td className="px-4 py-3 text-right text-[#666]">{formatUsd(market.openInterest)}</td>
-                  <td className="px-4 py-3 text-right text-[#666]">{market.traders}</td>
-                  <td className={`px-4 py-3 text-right ${market.change24h >= 0 ? 'text-[#00ff88]' : 'text-[#ff3344]'}`}>
-                    {formatPercent(market.change24h)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-[#00ff88]">
-                    {formatUsd([5670, 3450, 3220][i])}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/trade/${market.id}`}
-                      className="text-[#666] hover:text-white transition-colors"
-                    >
-                      View →
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Empty state */}
+        <div className="border border-white/[0.06] py-16 text-center">
+          <p className="text-[#444] font-mono text-sm mb-4">You haven&apos;t created any markets yet</p>
+          <Link
+            href="/launch"
+            className="inline-block bg-white text-black px-6 py-2 text-sm font-mono font-bold hover:bg-[#e0e0e0] transition-colors"
+          >
+            Launch Market →
+          </Link>
         </div>
       </div>
       <Footer />

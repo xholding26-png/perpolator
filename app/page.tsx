@@ -1,10 +1,26 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import TickerStrip from '@/components/TickerStrip';
 import Footer from '@/components/Footer';
-import { PLATFORM_STATS } from '@/lib/mock-data';
-import { formatUsd, formatNumber } from '@/lib/utils';
 
 export default function Home() {
+  const [stats, setStats] = useState({ marketsLive: 0, totalVolume: '—', totalTraders: '—' });
+
+  useEffect(() => {
+    // Fetch real market count from on-chain
+    fetch('/api/markets')
+      .then((r) => r.json())
+      .then((data) => {
+        setStats((prev) => ({ ...prev, marketsLive: data.count || 0 }));
+      })
+      .catch(() => {});
+
+    // Future: fetch volume/traders from Supabase
+    // For now, show dashes since no real data exists yet
+  }, []);
+
   return (
     <div className="flex flex-col min-h-[calc(100vh-48px)]">
       {/* Hero */}
@@ -35,7 +51,7 @@ export default function Home() {
         <div className="max-w-5xl mx-auto grid grid-cols-3 divide-x divide-white/[0.06]">
           <div className="py-8 text-center">
             <div className="text-3xl font-mono font-bold text-white">
-              {PLATFORM_STATS.marketsLive}
+              {stats.marketsLive}
             </div>
             <div className="text-xs text-[#666] uppercase tracking-wider mt-1">
               Markets Live
@@ -43,7 +59,7 @@ export default function Home() {
           </div>
           <div className="py-8 text-center">
             <div className="text-3xl font-mono font-bold text-white">
-              {formatUsd(PLATFORM_STATS.totalVolume)}
+              {stats.totalVolume}
             </div>
             <div className="text-xs text-[#666] uppercase tracking-wider mt-1">
               Total Volume
@@ -51,7 +67,7 @@ export default function Home() {
           </div>
           <div className="py-8 text-center">
             <div className="text-3xl font-mono font-bold text-white">
-              {formatNumber(PLATFORM_STATS.totalTraders)}
+              {stats.totalTraders}
             </div>
             <div className="text-xs text-[#666] uppercase tracking-wider mt-1">
               Total Traders

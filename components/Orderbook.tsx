@@ -1,17 +1,15 @@
 'use client';
 
-import { useMemo } from 'react';
 import { Market } from '@/lib/types';
-import { generateOrderbook } from '@/lib/mock-data';
 import { formatPrice } from '@/lib/utils';
 
 export default function Orderbook({ market }: { market: Market }) {
-  const book = useMemo(() => generateOrderbook(market), [market]);
+  // Real orderbook would come from on-chain program accounts
+  // For now, show empty state since no orders exist yet
+  const bids: { price: number; size: number; total: number }[] = [];
+  const asks: { price: number; size: number; total: number }[] = [];
 
-  const maxTotal = Math.max(
-    book.bids[book.bids.length - 1]?.total || 0,
-    book.asks[0]?.total || 0
-  );
+  const hasData = bids.length > 0 || asks.length > 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -26,40 +24,50 @@ export default function Orderbook({ market }: { market: Market }) {
         <span className="text-right">Total</span>
       </div>
 
-      {/* Asks (reversed so lowest ask is at bottom) */}
-      <div className="flex-1 overflow-hidden flex flex-col justify-end">
-        {book.asks.map((entry, i) => (
-          <div key={`ask-${i}`} className="relative grid grid-cols-3 text-[11px] font-mono px-3 py-[2px]">
-            <div
-              className="absolute inset-0 depth-ask"
-              style={{ width: `${(entry.total / maxTotal) * 100}%`, right: 0, left: 'auto' }}
-            />
-            <span className="relative text-[#ff3344]">{formatPrice(entry.price)}</span>
-            <span className="relative text-right text-[#666]">{entry.size.toFixed(2)}</span>
-            <span className="relative text-right text-[#666]">{entry.total.toFixed(2)}</span>
+      {hasData ? (
+        <>
+          {/* Asks */}
+          <div className="flex-1 overflow-hidden flex flex-col justify-end">
+            {asks.map((entry, i) => (
+              <div key={`ask-${i}`} className="relative grid grid-cols-3 text-[11px] font-mono px-3 py-[2px]">
+                <span className="relative text-[#ff3344]">{formatPrice(entry.price)}</span>
+                <span className="relative text-right text-[#666]">{entry.size.toFixed(2)}</span>
+                <span className="relative text-right text-[#666]">{entry.total.toFixed(2)}</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {/* Spread / current price */}
-      <div className="px-3 py-2 border-y border-white/[0.06] text-center">
-        <span className="text-sm font-mono font-bold text-white">{formatPrice(market.price)}</span>
-      </div>
-
-      {/* Bids */}
-      <div className="flex-1 overflow-hidden">
-        {book.bids.map((entry, i) => (
-          <div key={`bid-${i}`} className="relative grid grid-cols-3 text-[11px] font-mono px-3 py-[2px]">
-            <div
-              className="absolute inset-0 depth-bid"
-              style={{ width: `${(entry.total / maxTotal) * 100}%`, right: 0, left: 'auto' }}
-            />
-            <span className="relative text-[#00ff88]">{formatPrice(entry.price)}</span>
-            <span className="relative text-right text-[#666]">{entry.size.toFixed(2)}</span>
-            <span className="relative text-right text-[#666]">{entry.total.toFixed(2)}</span>
+          {/* Spread / current price */}
+          <div className="px-3 py-2 border-y border-white/[0.06] text-center">
+            <span className="text-sm font-mono font-bold text-white">
+              {market.price > 0 ? formatPrice(market.price) : '—'}
+            </span>
           </div>
-        ))}
-      </div>
+
+          {/* Bids */}
+          <div className="flex-1 overflow-hidden">
+            {bids.map((entry, i) => (
+              <div key={`bid-${i}`} className="relative grid grid-cols-3 text-[11px] font-mono px-3 py-[2px]">
+                <span className="relative text-[#00ff88]">{formatPrice(entry.price)}</span>
+                <span className="relative text-right text-[#666]">{entry.size.toFixed(2)}</span>
+                <span className="relative text-right text-[#666]">{entry.total.toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center py-12">
+          <p className="text-[11px] text-[#444] font-mono text-center px-4">
+            No orders yet
+          </p>
+          {market.price > 0 && (
+            <div className="mt-4 px-3 py-2 text-center">
+              <span className="text-sm font-mono font-bold text-white">{formatPrice(market.price)}</span>
+              <span className="text-[10px] text-[#444] ml-2">oracle</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

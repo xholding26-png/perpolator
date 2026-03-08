@@ -1,45 +1,31 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Market } from '@/lib/types';
 
-// Generate mock candlestick data
-function generateCandleData(basePrice: number, count: number) {
-  const data = [];
-  let price = basePrice * 0.9;
-  const now = Math.floor(Date.now() / 1000);
-
-  for (let i = count; i >= 0; i--) {
-    const open = price;
-    const change = (Math.random() - 0.48) * price * 0.02;
-    const close = open + change;
-    const high = Math.max(open, close) + Math.random() * price * 0.01;
-    const low = Math.min(open, close) - Math.random() * price * 0.01;
-
-    data.push({
-      time: now - i * 3600,
-      open,
-      high,
-      low,
-      close,
-    });
-
-    price = close;
-  }
-
-  return data;
-}
+// Map known token mints to CoinGecko IDs
+const MINT_TO_COINGECKO: Record<string, string> = {
+  'So11111111111111111111111111111111111111112': 'solana',
+  'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263': 'bonk',
+  'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm': 'dogwifhat',
+  'jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL': 'jito-governance-token',
+};
 
 export default function TradingChart({ market }: { market: Market }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof import('lightweight-charts').createChart> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
     let mounted = true;
 
-    import('lightweight-charts').then(({ createChart, ColorType }) => {
+    const coinId = MINT_TO_COINGECKO[market.mint] || null;
+
+    const loadChart = async () => {
+      const { createChart, ColorType } = await import('lightweight-charts');
       if (!mounted || !containerRef.current) return;
 
       // Clear previous chart
@@ -73,23 +59,53 @@ export default function TradingChart({ market }: { market: Market }) {
 
       chartRef.current = chart;
 
-      const series = chart.addSeries(
-        // @ts-expect-error lightweight-charts v5 API
-        0, // CandlestickSeries
-        {
-          upColor: '#00ff88',
-          downColor: '#ff3344',
-          borderUpColor: '#00ff88',
-          borderDownColor: '#ff3344',
-          wickUpColor: '#00ff88',
-          wickDownColor: '#ff3344',
-        }
-      );
+      if (coinId) {
+        try {
+          const res = await fetch(`/api/candles?coinId=${coinId}&days=7`);
+          if (!res.ok) throw new Error();
+          const ohlcData = await res.json();
 
-      const data = generateCandleData(market.price, 200);
-      // @ts-expect-error lightweight-charts v5 data format
-      series.setData(data);
-      chart.timeScale().fitContent();
+          if (!mounted || !Array.isArray(ohlcData) || ohlcData.length === 0) {
+            setError(true);
+            setLoading(false);
+            return;
+          }
+
+          const series = chart.addSeries(
+            // @ts-expect-error lightweight-charts v5 API
+            0, // CandlestickSeries
+            {
+              upColor: '#00ff88',
+              downColor: '#ff3344',
+              borderUpColor: '#00ff88',
+              borderDownColor: '#ff3344',
+              wickUpColor: '#00ff88',
+              wickDownColor: '#ff3344',
+            }
+          );
+
+          // CoinGecko OHLC format: [timestamp, open, high, low, close]
+          const candleData = ohlcData.map((d: number[]) => ({
+            time: Math.floor(d[0] / 1000),
+            open: d[1],
+            high: d[2],
+            low: d[3],
+            close: d[4],
+          }));
+
+          // @ts-expect-error lightweight-charts v5 data format
+          series.setData(candleData);
+          chart.timeScale().fitContent();
+          setLoading(false);
+        } catch {
+          setError(true);
+          setLoading(false);
+        }
+      } else {
+        // Unknown token — no chart data available
+        setError(true);
+        setLoading(false);
+      }
 
       // Handle resize
       const handleResize = () => {
@@ -102,12 +118,12 @@ export default function TradingChart({ market }: { market: Market }) {
       };
 
       const observer = new ResizeObserver(handleResize);
-      observer.observe(containerRef.current);
+      if (containerRef.current) observer.observe(containerRef.current);
 
-      return () => {
-        observer.disconnect();
-      };
-    });
+      return () => observer.disconnect();
+    };
+
+    loadChart();
 
     return () => {
       mounted = false;
@@ -118,5 +134,18 @@ export default function TradingChart({ market }: { market: Market }) {
     };
   }, [market]);
 
-  return <div ref={containerRef} className="w-full h-full min-h-[400px]" />;
+  return (
+    <div ref={containerRef} className="w-full h-full min-h-[400px] relative">
+      {loading && !error && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-[#444] font-mono text-sm">Loading chart...</span>
+        </div>
+      )}
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-[#444] font-mono text-sm">No chart data available for this token</span>
+        </div>
+      )}
+    </div>
+  );
 }

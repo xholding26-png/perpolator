@@ -1,7 +1,12 @@
 'use client';
 
+import { useState } from 'react';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { PublicKey, Transaction, TransactionInstruction } from '@solana/web3.js';
 import { useAppStore, LaunchConfig } from '@/lib/store';
 import { cn } from '@/lib/utils';
+
+const PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_PROGRAM_ID || 'GM8zjJ8LTBMv9xEsverh6H6wLyevgMHEJXcEzyY3rY24');
 
 const STEPS = [
   'Select Token',
@@ -64,7 +69,7 @@ export default function LaunchPage() {
         {launchStep === 3 && <StepFees config={launchConfig} update={updateLaunchConfig} />}
         {launchStep === 4 && <StepLiquidity config={launchConfig} update={updateLaunchConfig} />}
         {launchStep === 5 && <StepReview config={launchConfig} />}
-        {launchStep === 6 && <StepDeploy onReset={resetLaunchConfig} />}
+        {launchStep === 6 && <StepDeploy config={launchConfig} onReset={resetLaunchConfig} />}
       </div>
 
       {/* Navigation */}
@@ -97,6 +102,37 @@ export default function LaunchPage() {
 }
 
 function StepToken({ config, update }: { config: LaunchConfig; update: (p: Partial<LaunchConfig>) => void }) {
+  const { connection } = useConnection();
+  const [validating, setValidating] = useState(false);
+  const [mintValid, setMintValid] = useState<boolean | null>(null);
+  const [mintError, setMintError] = useState('');
+
+  const validateMint = async (mint: string) => {
+    update({ tokenMint: mint });
+    setMintValid(null);
+    setMintError('');
+
+    if (mint.length < 32) return;
+
+    setValidating(true);
+    try {
+      const pubkey = new PublicKey(mint);
+      const info = await connection.getAccountInfo(pubkey);
+      if (info) {
+        setMintValid(true);
+        setMintError('');
+      } else {
+        setMintValid(false);
+        setMintError('Token mint not found on devnet');
+      }
+    } catch {
+      setMintValid(false);
+      setMintError('Invalid address format');
+    } finally {
+      setValidating(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div>
@@ -104,10 +140,13 @@ function StepToken({ config, update }: { config: LaunchConfig; update: (p: Parti
         <input
           type="text"
           value={config.tokenMint}
-          onChange={(e) => update({ tokenMint: e.target.value })}
+          onChange={(e) => validateMint(e.target.value)}
           placeholder="Paste SPL token mint address..."
           className="w-full mt-1 bg-black border border-white/[0.06] px-4 py-3 text-sm font-mono text-white outline-none focus:border-white/20"
         />
+        {validating && <p className="text-[10px] text-[#666] mt-1">Validating on devnet...</p>}
+        {mintValid === true && <p className="text-[10px] text-[#00ff88] mt-1">✓ Token found on devnet</p>}
+        {mintValid === false && <p className="text-[10px] text-[#ff3344] mt-1">✗ {mintError}</p>}
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -132,7 +171,7 @@ function StepToken({ config, update }: { config: LaunchConfig; update: (p: Parti
         </div>
       </div>
       <p className="text-[11px] text-[#666]">
-        Any SPL token on Solana can have a perpetual futures market. Paste the mint address or search by name.
+        Any SPL token on Solana devnet can have a perpetual futures market. Paste the mint address to validate it exists.
       </p>
     </div>
   );
@@ -244,7 +283,7 @@ function StepLiquidity({ config, update }: { config: LaunchConfig; update: (p: P
 function StepReview({ config }: { config: LaunchConfig }) {
   const rows = [
     ['Token', `${config.tokenSymbol} (${config.tokenName})`],
-    ['Mint', config.tokenMint.slice(0, 16) + '...'],
+    ['Mint', config.tokenMint.length > 16 ? config.tokenMint.slice(0, 16) + '...' : config.tokenMint],
     ['Max Leverage', `${config.maxLeverage}x`],
     ['Initial Margin', `${config.initialMargin}%`],
     ['Maintenance Margin', `${config.maintenanceMargin}%`],
@@ -266,31 +305,120 @@ function StepReview({ config }: { config: LaunchConfig }) {
   );
 }
 
-function StepDeploy({ onReset }: { onReset: () => void }) {
+function StepDeploy({ config, onReset }: { config: LaunchConfig; onReset: () => void }) {
+  const { publicKey, sendTransaction, connected } = useWallet();
+  const { connection } = useConnection();
+  const [deploying, setDeploying] = useState(false);
+  const [txSig, setTxSig] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleDeploy = async () => {
+    if (!publicKey || !connected) {
+      setError('Please connect your wallet first');
+      return;
+    }
+
+    setDeploying(true);
+    setError(null);
+
+    try {
+      // Construct create_slab instruction
+      const tokenMint = new PublicKey(config.tokenMint);
+      
+      // Instruction data: discriminator + params
+      // This is a simplified version — the actual instruction layout depends on the program's IDL
+      const data = Buffer.alloc(64);
+      // 8-byte discriminator for "create_slab" (placeholder — would use actual anchor discriminator)
+      data.writeUInt8(0, 0); // instruction index
+      data.writeUInt16LE(config.maxLeverage, 8);
+      data.writeUInt16LE(config.tradingFeeBps, 10);
+      data.writeUInt16LE(config.liquidationFeeBps, 12);
+
+      const instruction = new TransactionInstruction({
+        keys: [
+          { pubkey: publicKey, isSigner: true, isWritable: true },
+          { pubkey: tokenMint, isSigner: false, isWritable: false },
+        ],
+        programId: PROGRAM_ID,
+        data,
+      });
+
+      const transaction = new Transaction().add(instruction);
+      const sig = await sendTransaction(transaction, connection);
+      
+      // Wait for confirmation
+      await connection.confirmTransaction(sig, 'confirmed');
+      setTxSig(sig);
+    } catch (err) {
+      console.error('Deploy error:', err);
+      setError(err instanceof Error ? err.message : 'Transaction failed');
+    } finally {
+      setDeploying(false);
+    }
+  };
+
+  if (!connected) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-sm text-[#666]">Please connect your wallet to deploy the market.</p>
+      </div>
+    );
+  }
+
+  if (txSig) {
+    return (
+      <div className="text-center py-8 space-y-4">
+        <div className="text-4xl">🚀</div>
+        <h3 className="text-lg font-mono font-bold text-[#00ff88]">Market Deployed!</h3>
+        <p className="text-sm text-[#666]">
+          Your perpetual futures market is now live on Solana devnet.
+        </p>
+        <a
+          href={`https://explorer.solana.com/tx/${txSig}?cluster=devnet`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-[#666] font-mono hover:text-white transition-colors"
+        >
+          Tx: {txSig.slice(0, 8)}...{txSig.slice(-8)} ↗
+        </a>
+        <div className="flex gap-4 justify-center mt-6">
+          <button
+            onClick={onReset}
+            className="px-6 py-2 border border-white/[0.06] text-sm font-mono text-[#666] hover:text-white transition-colors"
+          >
+            Launch Another
+          </button>
+          <a
+            href="/markets"
+            className="px-6 py-2 bg-white text-black text-sm font-mono hover:bg-[#e0e0e0] transition-colors"
+          >
+            View Markets →
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="text-center py-8 space-y-4">
-      <div className="text-4xl">🚀</div>
-      <h3 className="text-lg font-mono font-bold text-[#00ff88]">Market Deployed!</h3>
+      {error && (
+        <div className="text-sm text-[#ff3344] font-mono mb-4">{error}</div>
+      )}
       <p className="text-sm text-[#666]">
-        Your perpetual futures market is now live on Solana devnet.
+        Ready to deploy your {config.tokenSymbol}-PERP market on Solana devnet.
       </p>
-      <p className="text-xs text-[#666] font-mono">
-        Transaction: 5xKp...3mNq
-      </p>
-      <div className="flex gap-4 justify-center mt-6">
-        <button
-          onClick={onReset}
-          className="px-6 py-2 border border-white/[0.06] text-sm font-mono text-[#666] hover:text-white transition-colors"
-        >
-          Launch Another
-        </button>
-        <a
-          href="/markets"
-          className="px-6 py-2 bg-white text-black text-sm font-mono hover:bg-[#e0e0e0] transition-colors"
-        >
-          View Markets →
-        </a>
-      </div>
+      <button
+        onClick={handleDeploy}
+        disabled={deploying}
+        className={cn(
+          'px-8 py-3 text-sm font-mono font-bold transition-colors',
+          deploying
+            ? 'bg-white/[0.06] text-[#666] cursor-wait'
+            : 'bg-white text-black hover:bg-[#e0e0e0]'
+        )}
+      >
+        {deploying ? 'Deploying...' : 'Sign & Deploy'}
+      </button>
     </div>
   );
 }

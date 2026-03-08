@@ -1,25 +1,33 @@
 import { create } from 'zustand';
 import { Market, Position, Order, Trade } from './types';
-import { MOCK_MARKETS, MOCK_POSITIONS, MOCK_ORDERS, MOCK_TRADES } from './mock-data';
 
 interface AppStore {
   // Wallet
   connected: boolean;
   publicKey: string | null;
   balance: number;
+  setWallet: (connected: boolean, publicKey: string | null, balance: number) => void;
 
-  // Markets
+  // Markets (fetched from on-chain)
   markets: Market[];
+  marketsLoading: boolean;
+  setMarkets: (markets: Market[]) => void;
+  setMarketsLoading: (loading: boolean) => void;
   selectedMarket: Market | null;
   setSelectedMarket: (market: Market | null) => void;
 
-  // Trading
+  // Trading (empty until real on-chain data)
   positions: Position[];
   orders: Order[];
   trades: Trade[];
 
-  // Prices
-  prices: Record<string, number>;
+  // Real prices from CoinGecko
+  prices: Record<string, { usd: number; usd_24h_change?: number; usd_24h_vol?: number }>;
+  setPrices: (prices: Record<string, { usd: number; usd_24h_change?: number; usd_24h_vol?: number }>) => void;
+
+  // Platform stats (real)
+  stats: { marketsLive: number; totalVolume: string; totalTraders: string };
+  setStats: (stats: { marketsLive: number; totalVolume: string; totalTraders: string }) => void;
 
   // Launch wizard
   launchStep: number;
@@ -56,20 +64,34 @@ const DEFAULT_LAUNCH_CONFIG: LaunchConfig = {
 };
 
 export const useAppStore = create<AppStore>((set) => ({
+  // Wallet — starts disconnected, real balance fetched on connect
   connected: false,
   publicKey: null,
-  balance: 24.567,
+  balance: 0,
+  setWallet: (connected, publicKey, balance) => set({ connected, publicKey, balance }),
 
-  markets: MOCK_MARKETS,
+  // Markets — empty until fetched from on-chain
+  markets: [],
+  marketsLoading: true,
+  setMarkets: (markets) => set({ markets, marketsLoading: false }),
+  setMarketsLoading: (loading) => set({ marketsLoading: loading }),
   selectedMarket: null,
   setSelectedMarket: (market) => set({ selectedMarket: market }),
 
-  positions: MOCK_POSITIONS,
-  orders: MOCK_ORDERS,
-  trades: MOCK_TRADES,
+  // Trading — empty, no fake data
+  positions: [],
+  orders: [],
+  trades: [],
 
-  prices: Object.fromEntries(MOCK_MARKETS.map((m) => [m.id, m.price])),
+  // Prices — empty until fetched from CoinGecko
+  prices: {},
+  setPrices: (prices) => set({ prices }),
 
+  // Stats — real, default to dashes
+  stats: { marketsLive: 0, totalVolume: '—', totalTraders: '—' },
+  setStats: (stats) => set({ stats }),
+
+  // Launch wizard
   launchStep: 1,
   setLaunchStep: (step) => set({ launchStep: step }),
   launchConfig: DEFAULT_LAUNCH_CONFIG,

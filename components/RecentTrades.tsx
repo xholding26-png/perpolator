@@ -1,12 +1,11 @@
 'use client';
 
-import { useMemo } from 'react';
 import { Market } from '@/lib/types';
-import { generateRecentTrades } from '@/lib/mock-data';
-import { formatPrice } from '@/lib/utils';
 
-export default function RecentTrades({ market }: { market: Market }) {
-  const trades = useMemo(() => generateRecentTrades(market), [market]);
+export default function RecentTrades({ market: _market }: { market: Market }) {
+  // Real trades would come from on-chain transaction history
+  // For now, show empty state
+  const trades: never[] = [];
 
   return (
     <div className="flex flex-col">
@@ -18,19 +17,15 @@ export default function RecentTrades({ market }: { market: Market }) {
         <span className="text-right">Size</span>
         <span className="text-right">Time</span>
       </div>
-      <div className="overflow-y-auto max-h-[300px]">
-        {trades.map((trade) => (
-          <div key={trade.id} className="grid grid-cols-3 text-[11px] font-mono px-3 py-[2px]">
-            <span className={trade.side === 'long' ? 'text-[#00ff88]' : 'text-[#ff3344]'}>
-              {formatPrice(trade.price)}
-            </span>
-            <span className="text-right text-[#666]">{trade.size.toFixed(2)}</span>
-            <span className="text-right text-[#666]">
-              {new Date(trade.timestamp).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </span>
-          </div>
-        ))}
-      </div>
+      {trades.length === 0 ? (
+        <div className="py-8 text-center">
+          <p className="text-[11px] text-[#444] font-mono">No trades yet</p>
+        </div>
+      ) : (
+        <div className="overflow-y-auto max-h-[300px]">
+          {/* Trades would render here */}
+        </div>
+      )}
     </div>
   );
 }

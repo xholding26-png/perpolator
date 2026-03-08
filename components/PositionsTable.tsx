@@ -45,31 +45,32 @@ export default function PositionsTable() {
               </tr>
             </thead>
             <tbody>
-              {positions.map((pos) => (
-                <tr key={pos.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
-                  <td className="px-3 py-2 text-white">{pos.symbol}</td>
-                  <td className={cn('px-3 py-2 uppercase', pos.side === 'long' ? 'text-[#00ff88]' : 'text-[#ff3344]')}>
-                    {pos.side}
-                  </td>
-                  <td className="px-3 py-2 text-right text-white">{pos.size}</td>
-                  <td className="px-3 py-2 text-right text-[#666]">{formatPrice(pos.entryPrice)}</td>
-                  <td className="px-3 py-2 text-right text-white">{formatPrice(pos.markPrice)}</td>
-                  <td className="px-3 py-2 text-right text-[#666]">{pos.leverage}x</td>
-                  <td className={cn('px-3 py-2 text-right', pos.unrealizedPnl >= 0 ? 'text-[#00ff88]' : 'text-[#ff3344]')}>
-                    {formatUsd(pos.unrealizedPnl)} ({formatPercent(pos.unrealizedPnlPercent)})
-                  </td>
-                  <td className="px-3 py-2 text-right text-[#ff3344]">{formatPrice(pos.liquidationPrice)}</td>
-                  <td className="px-3 py-2 text-right">
-                    <button className="text-[#666] hover:text-white transition-colors">Close</button>
-                  </td>
-                </tr>
-              ))}
-              {positions.length === 0 && (
+              {positions.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-3 py-8 text-center text-[#666]">
+                  <td colSpan={9} className="px-3 py-8 text-center text-[#444]">
                     No open positions
                   </td>
                 </tr>
+              ) : (
+                positions.map((pos) => (
+                  <tr key={pos.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
+                    <td className="px-3 py-2 text-white">{pos.symbol}</td>
+                    <td className={cn('px-3 py-2 uppercase', pos.side === 'long' ? 'text-[#00ff88]' : 'text-[#ff3344]')}>
+                      {pos.side}
+                    </td>
+                    <td className="px-3 py-2 text-right text-white">{pos.size}</td>
+                    <td className="px-3 py-2 text-right text-[#666]">{formatPrice(pos.entryPrice)}</td>
+                    <td className="px-3 py-2 text-right text-white">{formatPrice(pos.markPrice)}</td>
+                    <td className="px-3 py-2 text-right text-[#666]">{pos.leverage}x</td>
+                    <td className={cn('px-3 py-2 text-right', pos.unrealizedPnl >= 0 ? 'text-[#00ff88]' : 'text-[#ff3344]')}>
+                      {formatUsd(pos.unrealizedPnl)} ({formatPercent(pos.unrealizedPnlPercent)})
+                    </td>
+                    <td className="px-3 py-2 text-right text-[#ff3344]">{formatPrice(pos.liquidationPrice)}</td>
+                    <td className="px-3 py-2 text-right">
+                      <button className="text-[#666] hover:text-white transition-colors">Close</button>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
@@ -89,27 +90,28 @@ export default function PositionsTable() {
               </tr>
             </thead>
             <tbody>
-              {orders.filter(o => o.status === 'open').map((order) => (
-                <tr key={order.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
-                  <td className="px-3 py-2 text-white">{order.symbol}</td>
-                  <td className={cn('px-3 py-2 uppercase', order.side === 'long' ? 'text-[#00ff88]' : 'text-[#ff3344]')}>
-                    {order.side}
-                  </td>
-                  <td className="px-3 py-2 text-[#666] uppercase">{order.type}</td>
-                  <td className="px-3 py-2 text-right text-white">{order.size}</td>
-                  <td className="px-3 py-2 text-right text-white">{formatPrice(order.price)}</td>
-                  <td className="px-3 py-2 text-right text-[#666]">{order.leverage}x</td>
-                  <td className="px-3 py-2 text-right">
-                    <button className="text-[#ff3344] hover:text-[#ff5566] transition-colors">Cancel</button>
-                  </td>
-                </tr>
-              ))}
-              {orders.filter(o => o.status === 'open').length === 0 && (
+              {orders.filter(o => o.status === 'open').length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-8 text-center text-[#666]">
-                    No open orders
+                  <td colSpan={7} className="px-3 py-8 text-center text-[#444]">
+                    No pending orders
                   </td>
                 </tr>
+              ) : (
+                orders.filter(o => o.status === 'open').map((order) => (
+                  <tr key={order.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
+                    <td className="px-3 py-2 text-white">{order.symbol}</td>
+                    <td className={cn('px-3 py-2 uppercase', order.side === 'long' ? 'text-[#00ff88]' : 'text-[#ff3344]')}>
+                      {order.side}
+                    </td>
+                    <td className="px-3 py-2 text-[#666] uppercase">{order.type}</td>
+                    <td className="px-3 py-2 text-right text-white">{order.size}</td>
+                    <td className="px-3 py-2 text-right text-white">{formatPrice(order.price)}</td>
+                    <td className="px-3 py-2 text-right text-[#666]">{order.leverage}x</td>
+                    <td className="px-3 py-2 text-right">
+                      <button className="text-[#ff3344] hover:text-[#ff5566] transition-colors">Cancel</button>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
@@ -129,23 +131,31 @@ export default function PositionsTable() {
               </tr>
             </thead>
             <tbody>
-              {trades.map((trade) => (
-                <tr key={trade.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
-                  <td className="px-3 py-2 text-white">{trade.symbol}</td>
-                  <td className={cn('px-3 py-2 uppercase', trade.side === 'long' ? 'text-[#00ff88]' : 'text-[#ff3344]')}>
-                    {trade.side}
-                  </td>
-                  <td className="px-3 py-2 text-right text-white">{trade.size}</td>
-                  <td className="px-3 py-2 text-right text-white">{formatPrice(trade.price)}</td>
-                  <td className="px-3 py-2 text-right text-[#666]">${trade.fee.toFixed(2)}</td>
-                  <td className={cn('px-3 py-2 text-right', (trade.pnl ?? 0) >= 0 ? 'text-[#00ff88]' : 'text-[#ff3344]')}>
-                    {trade.pnl !== undefined ? formatUsd(trade.pnl) : '—'}
-                  </td>
-                  <td className="px-3 py-2 text-right text-[#666]">
-                    {new Date(trade.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              {trades.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-3 py-8 text-center text-[#444]">
+                    No trades yet
                   </td>
                 </tr>
-              ))}
+              ) : (
+                trades.map((trade) => (
+                  <tr key={trade.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
+                    <td className="px-3 py-2 text-white">{trade.symbol}</td>
+                    <td className={cn('px-3 py-2 uppercase', trade.side === 'long' ? 'text-[#00ff88]' : 'text-[#ff3344]')}>
+                      {trade.side}
+                    </td>
+                    <td className="px-3 py-2 text-right text-white">{trade.size}</td>
+                    <td className="px-3 py-2 text-right text-white">{formatPrice(trade.price)}</td>
+                    <td className="px-3 py-2 text-right text-[#666]">${trade.fee.toFixed(2)}</td>
+                    <td className={cn('px-3 py-2 text-right', (trade.pnl ?? 0) >= 0 ? 'text-[#00ff88]' : 'text-[#ff3344]')}>
+                      {trade.pnl !== undefined ? formatUsd(trade.pnl) : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-right text-[#666]">
+                      {new Date(trade.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         )}

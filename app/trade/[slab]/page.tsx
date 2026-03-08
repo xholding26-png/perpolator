@@ -1,29 +1,65 @@
 'use client';
 
-import { use, useEffect } from 'react';
+import { use, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useAppStore } from '@/lib/store';
-import { MOCK_MARKETS } from '@/lib/mock-data';
 import { formatPrice, formatUsd, formatPercent, formatFundingRate, formatCountdown, cn } from '@/lib/utils';
 import Orderbook from '@/components/Orderbook';
 import RecentTrades from '@/components/RecentTrades';
 import OrderEntry from '@/components/OrderEntry';
 import PositionsTable from '@/components/PositionsTable';
 import TradingChart from '@/components/TradingChart';
+import type { Market } from '@/lib/types';
 
 export default function TradePage({ params }: { params: Promise<{ slab: string }> }) {
   const { slab } = use(params);
   const { selectedMarket, setSelectedMarket } = useAppStore();
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
+  // Fetch market from on-chain
   useEffect(() => {
-    const market = MOCK_MARKETS.find((m) => m.id === slab);
-    if (market) setSelectedMarket(market);
+    setLoading(true);
+    setNotFound(false);
+
+    fetch('/api/markets')
+      .then((r) => r.json())
+      .then((data) => {
+        const market = (data.markets || []).find((m: Market) => m.id === slab);
+        if (market) {
+          setSelectedMarket(market);
+        } else {
+          setNotFound(true);
+        }
+      })
+      .catch(() => {
+        setNotFound(true);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+
     return () => setSelectedMarket(null);
   }, [slab, setSelectedMarket]);
 
-  if (!selectedMarket) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-48px)]">
+        <span className="text-[#666] font-mono text-sm">Loading market...</span>
+      </div>
+    );
+  }
+
+  if (notFound || !selectedMarket) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-48px)] gap-4">
         <span className="text-[#666] font-mono text-sm">Market not found</span>
+        <Link
+          href="/markets"
+          className="text-xs font-mono border border-white/[0.06] px-4 py-2 hover:bg-white/[0.04] transition-colors"
+        >
+          ← Back to Markets
+        </Link>
       </div>
     );
   }
@@ -38,29 +74,33 @@ export default function TradePage({ params }: { params: Promise<{ slab: string }
           <span className="text-lg font-mono font-bold text-white">{m.symbol}</span>
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-lg font-mono font-bold text-white">{formatPrice(m.price)}</span>
-          <span className={cn('text-xs font-mono', m.change24h >= 0 ? 'text-[#00ff88]' : 'text-[#ff3344]')}>
-            {formatPercent(m.change24h)}
+          <span className="text-lg font-mono font-bold text-white">
+            {m.price > 0 ? formatPrice(m.price) : '—'}
           </span>
+          {m.change24h !== 0 && (
+            <span className={cn('text-xs font-mono', m.change24h >= 0 ? 'text-[#00ff88]' : 'text-[#ff3344]')}>
+              {formatPercent(m.change24h)}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-4 text-[11px] font-mono text-[#666]">
           <div>
             <span className="text-[#444]">24h Vol </span>
-            <span className="text-white">{formatUsd(m.volume24h)}</span>
+            <span className="text-white">{m.volume24h > 0 ? formatUsd(m.volume24h) : '—'}</span>
           </div>
           <div>
             <span className="text-[#444]">OI </span>
-            <span className="text-white">{formatUsd(m.openInterest)}</span>
+            <span className="text-white">{m.openInterest > 0 ? formatUsd(m.openInterest) : '—'}</span>
           </div>
           <div>
             <span className="text-[#444]">Funding </span>
             <span className={cn(m.fundingRate >= 0 ? 'text-[#00ff88]' : 'text-[#ff3344]')}>
-              {formatFundingRate(m.fundingRate)}
+              {m.fundingRate !== 0 ? formatFundingRate(m.fundingRate) : '—'}
             </span>
           </div>
           <div>
             <span className="text-[#444]">Next </span>
-            <span className="text-white">{formatCountdown(m.nextFunding)}</span>
+            <span className="text-white">{m.nextFunding > 0 ? formatCountdown(m.nextFunding) : '—'}</span>
           </div>
         </div>
       </div>
