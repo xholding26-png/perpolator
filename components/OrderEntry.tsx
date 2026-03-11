@@ -13,6 +13,7 @@ import {
 
 // Tags from our program
 const TAG_EXECUTE_TRADE = 5;
+const TAG_TRADE_VAMM = 35;
 
 function encU8(n: number): Buffer {
   const b = Buffer.alloc(1); b.writeUInt8(n); return b;
@@ -63,15 +64,13 @@ export default function OrderEntry({ market }: { market: Market }) {
       await phantom.connect();
       const userPubkey = phantom.publicKey;
 
-      // Build execute_trade instruction
-      // Data: tag(1) + lp_idx(2) + user_idx(2) + size(16, i128)
-      // For now use LP at index 0 and user at index 0
+      // Build trade_vamm instruction (uses virtual AMM liquidity)
+      // Data: tag(1) + user_idx(2) + size(16, i128)
       const sizeE6 = BigInt(Math.round(sizeNum * 1_000_000));
       const signedSize = side === 'long' ? sizeE6 : -sizeE6;
 
       const data = Buffer.concat([
-        encU8(TAG_EXECUTE_TRADE),
-        encU16(0), // LP index
+        encU8(TAG_TRADE_VAMM),
         encU16(1), // User index (first registered trader = index 1)
         encI128(signedSize),
       ]);
