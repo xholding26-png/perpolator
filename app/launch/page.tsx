@@ -6,7 +6,7 @@ import { PublicKey, Transaction, TransactionInstruction } from '@solana/web3.js'
 import { useAppStore, LaunchConfig } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
-const PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_PROGRAM_ID || 'GM8zjJ8LTBMv9xEsverh6H6wLyevgMHEJXcEzyY3rY24');
+const PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_PROGRAM_ID || '884d5ngZbUy3VJTHxgeopSWNBvqw2KAq9cSgVacJfgq2');
 
 const STEPS = [
   'Select Token',

@@ -1,8 +1,32 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Market } from '@/lib/types';
 import { formatPrice, cn } from '@/lib/utils';
+import { PROGRAM_ID, RPC_URL } from '@/lib/solana';
+import {
+  Connection,
+  PublicKey,
+  Transaction,
+  TransactionInstruction,
+} from '@solana/web3.js';
+
+// Tags from our program
+const TAG_EXECUTE_TRADE = 5;
+
+function encU8(n: number): Buffer {
+  const b = Buffer.alloc(1); b.writeUInt8(n); return b;
+}
+function encU16(n: number): Buffer {
+  const b = Buffer.alloc(2); b.writeUInt16LE(n); return b;
+}
+function encI128(n: bigint): Buffer {
+  const b = Buffer.alloc(16);
+  const unsigned = n < 0n ? n + (1n << 128n) : n;
+  b.writeBigUInt64LE(unsigned & BigInt('0xFFFFFFFFFFFFFFFF'), 0);
+  b.writeBigUInt64LE((unsigned >> 64n) & BigInt('0xFFFFFFFFFFFFFFFF'), 8);
+  return b;
+}
 
 export default function OrderEntry({ market }: { market: Market }) {
   const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
@@ -10,15 +34,77 @@ export default function OrderEntry({ market }: { market: Market }) {
   const [size, setSize] = useState('');
   const [limitPrice, setLimitPrice] = useState('');
   const [leverage, setLeverage] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
 
   const sizeNum = parseFloat(size) || 0;
   const price = orderType === 'limit' ? (parseFloat(limitPrice) || market.price) : market.price;
   const notional = sizeNum * price;
   const margin = notional / leverage;
-  const liqDistance = side === 'long' ? 1 / leverage : 1 / leverage;
+  const liqDistance = 1 / leverage;
   const liqPrice = side === 'long'
     ? price * (1 - liqDistance * 0.9)
     : price * (1 + liqDistance * 0.9);
+
+  const handleSubmit = useCallback(async () => {
+    if (sizeNum <= 0) return;
+    
+    // Check for Phantom wallet
+    const phantom = (window as any)?.solana;
+    if (!phantom?.isPhantom) {
+      setStatus('Connect Phantom wallet first');
+      return;
+    }
+
+    setSubmitting(true);
+    setStatus(null);
+
+    try {
+      await phantom.connect();
+      const userPubkey = phantom.publicKey;
+
+      // Build execute_trade instruction
+      // Data: tag(1) + lp_idx(2) + user_idx(2) + size(16, i128)
+      // For now use LP at index 0 and user at index 0
+      const sizeE6 = BigInt(Math.round(sizeNum * 1_000_000));
+      const signedSize = side === 'long' ? sizeE6 : -sizeE6;
+
+      const data = Buffer.concat([
+        encU8(TAG_EXECUTE_TRADE),
+        encU16(0), // LP index
+        encU16(1), // User index (first registered trader = index 1)
+        encI128(signedSize),
+      ]);
+
+      const slabPubkey = new PublicKey(market.id);
+
+      const ix = new TransactionInstruction({
+        keys: [
+          { pubkey: userPubkey, isSigner: true, isWritable: false },
+          { pubkey: slabPubkey, isSigner: false, isWritable: true },
+        ],
+        programId: PROGRAM_ID,
+        data,
+      });
+
+      const connection = new Connection(RPC_URL, 'confirmed');
+      const { blockhash } = await connection.getLatestBlockhash();
+      const tx = new Transaction().add(ix);
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = userPubkey;
+
+      const signed = await phantom.signTransaction(tx);
+      const sig = await connection.sendRawTransaction(signed.serialize());
+      await connection.confirmTransaction(sig, 'confirmed');
+
+      setStatus(`✅ Trade confirmed: ${sig.slice(0, 12)}...`);
+      setSize('');
+    } catch (e: any) {
+      setStatus(`❌ ${e.message?.slice(0, 80) || 'Trade failed'}`);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [sizeNum, side, market.id]);
 
   return (
     <div className="flex flex-col h-full">
@@ -133,16 +219,23 @@ export default function OrderEntry({ market }: { market: Market }) {
           </div>
         </div>
 
+        {/* Status */}
+        {status && (
+          <div className="text-[11px] font-mono text-[#888] break-all">{status}</div>
+        )}
+
         {/* Submit */}
         <button
+          onClick={handleSubmit}
+          disabled={submitting || sizeNum <= 0}
           className={cn(
-            'w-full py-3 text-sm font-mono uppercase font-bold transition-colors mt-auto',
+            'w-full py-3 text-sm font-mono uppercase font-bold transition-colors mt-auto disabled:opacity-40',
             side === 'long'
               ? 'bg-[#00ff88] text-black hover:bg-[#00dd77]'
               : 'bg-[#ff3344] text-white hover:bg-[#dd2233]'
           )}
         >
-          {side === 'long' ? 'Long' : 'Short'} {market.symbol}
+          {submitting ? 'Submitting...' : side === 'long' ? 'Long' : 'Short'} {market.symbol}
         </button>
       </div>
     </div>

@@ -1,76 +1,94 @@
 import { NextResponse } from 'next/server';
 import { Connection, PublicKey } from '@solana/web3.js';
+import { PROGRAM_ID, RPC_URL, MAGIC, HEADER_LEN, OFF_MAGIC, OFF_FLAGS, OFF_ADMIN, OFF_COLLATERAL_MINT, OFF_ORACLE_PRICE, FLAG_PAUSED } from '@/lib/solana';
+import { Market } from '@/lib/types';
 
-const RPC_URL = process.env.NEXT_PUBLIC_HELIUS_RPC_URL || 'https://devnet.helius-rpc.com/?api-key=dd62a158-95b7-40e8-bc19-a59cacb95f40';
-const PROGRAM_ID = new PublicKey(process.env.NEXT_PUBLIC_PROGRAM_ID || 'GM8zjJ8LTBMv9xEsverh6H6wLyevgMHEJXcEzyY3rY24');
-
-let cachedMarkets: unknown[] | null = null;
+let cachedMarkets: Market[] | null = null;
 let cacheTime = 0;
-const CACHE_TTL = 10000; // 10 seconds
+const CACHE_TTL = 10_000;
 
 export async function GET() {
   const now = Date.now();
-
   if (cachedMarkets && now - cacheTime < CACHE_TTL) {
     return NextResponse.json({ markets: cachedMarkets, count: cachedMarkets.length });
   }
 
   try {
     const connection = new Connection(RPC_URL, 'confirmed');
-    const accounts = await connection.getProgramAccounts(PROGRAM_ID);
+    // Known slabs (supplement getProgramAccounts which is unreliable on devnet public RPC)
+    const KNOWN_SLABS = [
+      'AEdBaMQKGcSw51iZHc8WHD3bdWGUstNPGXh9UBiWsNLK', // full market (LP + trader + crank + trades)
+    ];
 
-    // Parse program accounts to find market/slab accounts
-    // The Percolator program stores market data in accounts owned by the program
+    // Try getProgramAccounts, fallback to known slabs
+    let accounts: { pubkey: PublicKey; account: { data: Buffer | Uint8Array } }[] = [];
+    try {
+      const rpcAccounts = await connection.getProgramAccounts(PROGRAM_ID, {
+        dataSlice: { offset: 0, length: 512 },
+      });
+      accounts = rpcAccounts as any;
+    } catch {}
+
+    // Add known slabs if not already found
+    const foundKeys = new Set(accounts.map(a => a.pubkey.toBase58()));
+    for (const key of KNOWN_SLABS) {
+      if (foundKeys.has(key)) continue;
+      try {
+        const info = await connection.getAccountInfo(new PublicKey(key), { dataSlice: { offset: 0, length: 512 } } as any);
+        if (info) {
+          accounts.push({ pubkey: new PublicKey(key), account: { data: info.data } });
+        }
+      } catch {}
+    }
+
+    console.log(`Found ${accounts.length} program accounts`);
     const markets = accounts
-      .map((account) => {
+      .map(({ pubkey, account }) => {
         try {
-          const data = account.account.data;
-          // Minimum size check for a valid market account
-          if (data.length < 100) return null;
+          const data = Buffer.from(account.data as Uint8Array);
+          console.log(`Account ${pubkey.toBase58()}: ${data.length} bytes`);
+          if (data.length < HEADER_LEN + 100) return null;
 
-          // Try to parse the slab/market account data
-          // Percolator slab layout (approximate):
-          // 0-8: discriminator
-          // 8-40: authority (32 bytes pubkey)
-          // 40-72: token_mint (32 bytes pubkey)
-          // 72-74: max_leverage (u16)
-          // 74-76: trading_fee_bps (u16)
-          // 76-78: liquidation_fee_bps (u16)
-          // 78-79: is_active (bool)
-          const discriminator = data.slice(0, 8);
-          const authority = new PublicKey(data.slice(8, 40)).toBase58();
-          const tokenMint = new PublicKey(data.slice(40, 72)).toBase58();
-          const maxLeverage = data.readUInt16LE(72);
-          const tradingFeeBps = data.readUInt16LE(74);
-          const liquidationFeeBps = data.readUInt16LE(76);
-          const isActive = data[78] === 1;
+          // Verify magic
+          const magic = data.readBigUInt64LE(OFF_MAGIC);
+          console.log(`  Magic: ${magic.toString(16)} (expected: ${MAGIC.toString(16)})`);
+          if (magic !== MAGIC) return null;
 
-          if (!isActive) return null;
+          const flags = data[13]; // OFF_FLAGS
+          if (flags & FLAG_PAUSED) return null; // skip paused markets
+
+          const admin = new PublicKey(data.subarray(16, 48)).toBase58();
+          const mint = new PublicKey(data.subarray(HEADER_LEN, HEADER_LEN + 32)).toBase58();
+          const oraclePriceE6 = Number(data.readBigUInt64LE(OFF_ORACLE_PRICE));
+          const price = oraclePriceE6 / 1_000_000;
+
+          // Read engine stats at ENGINE_OFF
+          // Engine: vault(16) at offset 0, insurance at ~16
+          // For now, basic info
+          const slabId = pubkey.toBase58();
+          const shortMint = `${mint.slice(0, 4)}...${mint.slice(-4)}`;
 
           return {
-            id: account.pubkey.toBase58(),
-            pubkey: account.pubkey.toBase58(),
-            authority,
-            mint: tokenMint,
-            symbol: `${tokenMint.slice(0, 4)}...-PERP`,
-            name: tokenMint.slice(0, 8),
-            maxLeverage,
-            tradingFeeBps,
-            liquidationFeeBps,
-            price: 0,
+            id: slabId,
+            symbol: `${shortMint}-PERP`,
+            name: `${shortMint} Perpetual`,
+            mint,
+            price,
             change24h: 0,
             volume24h: 0,
             openInterest: 0,
+            maxLeverage: 20, // from initial_margin_bps = 500 → 20x
             traders: 0,
             fundingRate: 0,
-            nextFunding: 0,
+            nextFunding: 3600,
+            creator: admin,
             createdAt: new Date().toISOString(),
-          };
+          } satisfies Market;
         } catch {
           return null;
         }
       })
-      .filter(Boolean);
+      .filter(Boolean) as Market[];
 
     cachedMarkets = markets;
     cacheTime = now;
@@ -78,6 +96,6 @@ export async function GET() {
     return NextResponse.json({ markets, count: markets.length });
   } catch (error) {
     console.error('Markets fetch error:', error);
-    return NextResponse.json({ markets: [], count: 0, error: 'Failed to fetch on-chain markets' });
+    return NextResponse.json({ markets: [], count: 0, error: String(error) });
   }
 }

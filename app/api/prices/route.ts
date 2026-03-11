@@ -1,37 +1,44 @@
 import { NextResponse } from 'next/server';
+import { Connection, PublicKey } from '@solana/web3.js';
+import { PROGRAM_ID, RPC_URL, OFF_ORACLE_PRICE } from '@/lib/solana';
 
-let cachedPrices: Record<string, unknown> | null = null;
-let cacheTime = 0;
-const CACHE_TTL = 5000; // 5 seconds
+/**
+ * GET /api/prices?slab=<pubkey>
+ * Returns the current oracle price for a market slab.
+ */
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const slabKey = url.searchParams.get('slab');
 
-export async function GET() {
-  const now = Date.now();
-
-  if (cachedPrices && now - cacheTime < CACHE_TTL) {
-    return NextResponse.json(cachedPrices);
+  if (!slabKey) {
+    return NextResponse.json({ error: 'Missing slab parameter' }, { status: 400 });
   }
 
   try {
-    const res = await fetch(
-      'https://api.coingecko.com/api/v3/simple/price?ids=solana,bonk,dogwifhat,jito-governance-token&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true',
-      { next: { revalidate: 5 } }
-    );
+    const connection = new Connection(RPC_URL, 'confirmed');
+    const pubkey = new PublicKey(slabKey);
+    const info = await connection.getAccountInfo(pubkey);
 
-    if (!res.ok) {
-      throw new Error(`CoinGecko returned ${res.status}`);
+    if (!info || !info.data) {
+      return NextResponse.json({ error: 'Slab not found' }, { status: 404 });
     }
 
-    const data = await res.json();
-    cachedPrices = data;
-    cacheTime = now;
+    const data = info.data as Buffer;
+    const oraclePriceE6 = Number(data.readBigUInt64LE(OFF_ORACLE_PRICE));
+    const price = oraclePriceE6 / 1_000_000;
 
-    return NextResponse.json(data);
+    // Read some engine state
+    const flags = data[13];
+
+    return NextResponse.json({
+      slab: slabKey,
+      price,
+      priceE6: oraclePriceE6,
+      isPaused: (flags & 0x02) !== 0,
+      isResolved: (flags & 0x01) !== 0,
+      timestamp: Date.now(),
+    });
   } catch (error) {
-    console.error('Price fetch error:', error);
-    // Return cached data if available, otherwise empty
-    if (cachedPrices) {
-      return NextResponse.json(cachedPrices);
-    }
-    return NextResponse.json({}, { status: 502 });
+    return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
