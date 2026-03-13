@@ -12,6 +12,7 @@ export interface Market {
   fundingRate: number;
   nextFunding: number; // seconds until next funding
   iconUrl?: string;
+  image?: string;
   creator?: string;
   createdAt: string;
 }

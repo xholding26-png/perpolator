@@ -16,6 +16,7 @@ export default function TradePage({ params }: { params: Promise<{ slab: string }
   const { selectedMarket, setSelectedMarket } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [tokenMeta, setTokenMeta] = useState<{ name: string; symbol: string; image: string } | null>(null);
 
   // Fetch market from on-chain
   useEffect(() => {
@@ -28,6 +29,20 @@ export default function TradePage({ params }: { params: Promise<{ slab: string }
         const market = (data.markets || []).find((m: Market) => m.id === slab);
         if (market) {
           setSelectedMarket(market);
+          // Fetch token metadata + live price
+          if (market.mint) {
+            // Metadata (name, symbol, image)
+            fetch(`/api/token-metadata?mint=${market.mint}`)
+              .then(r => r.json())
+              .then(meta => {
+                if (meta.symbol) {
+                  setTokenMeta(meta);
+                  const cur = useAppStore.getState().selectedMarket;
+                  if (cur) setSelectedMarket({ ...cur, symbol: `${meta.symbol}-PERP`, name: `${meta.name} Perpetual` });
+                }
+              })
+              .catch(() => {});
+          }
         } else {
           setNotFound(true);
         }
@@ -41,6 +56,36 @@ export default function TradePage({ params }: { params: Promise<{ slab: string }
 
     return () => setSelectedMarket(null);
   }, [slab, setSelectedMarket]);
+
+  // Live price polling from DexScreener
+  useEffect(() => {
+    if (!selectedMarket?.mint) return;
+    const mint = selectedMarket.mint;
+    
+    const fetchLivePrice = () => {
+      fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.pairs?.[0]) {
+            const pair = data.pairs[0];
+            const cur = useAppStore.getState().selectedMarket;
+            if (cur && cur.mint === mint) {
+              setSelectedMarket({
+                ...cur,
+                price: parseFloat(pair.priceUsd || '0'),
+                change24h: parseFloat(pair.priceChange?.h24 || '0'),
+                volume24h: parseFloat(pair.volume?.h24 || '0'),
+              });
+            }
+          }
+        })
+        .catch(() => {});
+    };
+    
+    fetchLivePrice();
+    const interval = setInterval(fetchLivePrice, 5000);
+    return () => clearInterval(interval);
+  }, [selectedMarket?.mint, setSelectedMarket]);
 
   if (loading) {
     return (
@@ -71,6 +116,9 @@ export default function TradePage({ params }: { params: Promise<{ slab: string }
       {/* Market Header */}
       <div className="border-b border-white/[0.06] px-4 py-2 flex items-center gap-6 overflow-x-auto">
         <div className="flex items-center gap-2">
+          {tokenMeta?.image && (
+            <img src={tokenMeta.image} alt={tokenMeta.symbol} className="w-6 h-6 rounded-full" />
+          )}
           <span className="text-lg font-mono font-bold text-white">{m.symbol}</span>
         </div>
         <div className="flex items-center gap-1">

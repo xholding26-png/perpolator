@@ -16,7 +16,28 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: 'PERPOLATOR — Permissionless Perpetual Futures',
-  description: 'Launch a leveraged trading market for any Solana token in 60 seconds.',
+  description: 'Launch a leveraged trading market for any Solana token in 60 seconds. Up to 20x leverage. Coin-margined. Fully on-chain.',
+  openGraph: {
+    title: 'PERPOLATOR',
+    description: 'Any token. Any leverage. No permission needed. Permissionless perpetual futures on Solana.',
+    url: 'https://perpolator.com',
+    siteName: 'Perpolator',
+    type: 'website',
+    images: [
+      {
+        url: 'https://perpolator.com/og-image.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'Perpolator — Any token. Any leverage. No permission needed.',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'PERPOLATOR — Permissionless Perps on Solana',
+    description: 'Any token. Any leverage. No permission needed.',
+    images: ['https://perpolator.com/og-image.jpg'],
+  },
 };
 
 export default function RootLayout({

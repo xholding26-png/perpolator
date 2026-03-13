@@ -16,18 +16,19 @@ export async function GET() {
   try {
     const connection = new Connection(RPC_URL, 'confirmed');
     // Known slabs (supplement getProgramAccounts which is unreliable on devnet public RPC)
-    const KNOWN_SLABS = [
-      'AEdBaMQKGcSw51iZHc8WHD3bdWGUstNPGXh9UBiWsNLK', // full market (LP + trader + crank + trades)
+    const KNOWN_SLABS: string[] = [
+      // Cleared — old devnet markets removed, will repopulate after redeploy
     ];
 
     // Try getProgramAccounts, fallback to known slabs
     let accounts: { pubkey: PublicKey; account: { data: Buffer | Uint8Array } }[] = [];
-    try {
-      const rpcAccounts = await connection.getProgramAccounts(PROGRAM_ID, {
-        dataSlice: { offset: 0, length: 512 },
-      });
-      accounts = rpcAccounts as any;
-    } catch {}
+    // Temporarily disabled — old program markets cleared, will re-enable after redeploy
+    // try {
+    //   const rpcAccounts = await connection.getProgramAccounts(PROGRAM_ID, {
+    //     dataSlice: { offset: 0, length: 512 },
+    //   });
+    //   accounts = rpcAccounts as any;
+    // } catch {}
 
     // Add known slabs if not already found
     const foundKeys = new Set(accounts.map(a => a.pubkey.toBase58()));
@@ -66,6 +67,7 @@ export async function GET() {
           // Engine: vault(16) at offset 0, insurance at ~16
           // For now, basic info
           const slabId = pubkey.toBase58();
+
           const shortMint = `${mint.slice(0, 4)}...${mint.slice(-4)}`;
 
           return {
@@ -74,6 +76,7 @@ export async function GET() {
             name: `${shortMint} Perpetual`,
             mint,
             price,
+            image: '',
             change24h: 0,
             volume24h: 0,
             openInterest: 0,
@@ -89,6 +92,64 @@ export async function GET() {
         }
       })
       .filter(Boolean) as Market[];
+
+    // Enrich with token metadata from Helius DAS
+    const HELIUS_KEY = 'dd62a158-95b7-40e8-bc19-a59cacb95f40';
+    const mints = markets.map(m => m.mint).filter(Boolean);
+    if (mints.length > 0) {
+      try {
+        const dasResp = await fetch(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'getAssetBatch',
+            params: { ids: mints },
+          }),
+        });
+        const dasData = await dasResp.json();
+        if (dasData.result) {
+          const metaMap = new Map<string, { name: string; symbol: string; image: string }>();
+          for (const asset of dasData.result) {
+            if (asset?.id && asset?.content?.metadata) {
+              metaMap.set(asset.id, {
+                name: asset.content.metadata.name || '',
+                symbol: asset.content.metadata.symbol || '',
+                image: asset.content.links?.image || asset.content.files?.[0]?.uri || '',
+              });
+            }
+          }
+          for (const market of markets) {
+            const meta = metaMap.get(market.mint);
+            if (meta?.symbol) {
+              market.symbol = `${meta.symbol}-PERP`;
+              market.name = `${meta.name} Perpetual`;
+              (market as any).image = meta.image;
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // Enrich with live prices from DexScreener
+    try {
+      const mintList = markets.map(m => m.mint).filter(Boolean).join(',');
+      if (mintList) {
+        for (const market of markets) {
+          try {
+            const dsResp = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${market.mint}`);
+            const dsData = await dsResp.json();
+            if (dsData.pairs?.[0]) {
+              const pair = dsData.pairs[0];
+              market.price = parseFloat(pair.priceUsd || '0') || market.price;
+              market.change24h = parseFloat(pair.priceChange?.h24 || '0');
+              market.volume24h = parseFloat(pair.volume?.h24 || '0');
+            }
+          } catch {}
+        }
+      }
+    } catch {}
 
     cachedMarkets = markets;
     cacheTime = now;

@@ -1,38 +1,71 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-let cache: Record<string, { data: unknown; time: number }> = {};
-const CACHE_TTL = 30000; // 30 seconds
+// GeckoTerminal free API — real OHLCV data for any Solana token
+const BASE = 'https://api.geckoterminal.com/api/v2/networks/solana';
 
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const coinId = searchParams.get('coinId') || 'solana';
-  const days = searchParams.get('days') || '7';
-  const cacheKey = `${coinId}-${days}`;
-  const now = Date.now();
+export async function GET(req: NextRequest) {
+  const mint = req.nextUrl.searchParams.get('mint');
+  const tf = req.nextUrl.searchParams.get('tf') || '5'; // minutes
+  const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') || '300'), 1000);
 
-  if (cache[cacheKey] && now - cache[cacheKey].time < CACHE_TTL) {
-    return NextResponse.json(cache[cacheKey].data);
+  if (!mint) {
+    return NextResponse.json({ error: 'Missing mint' }, { status: 400 });
   }
 
   try {
-    const res = await fetch(
-      `https://api.coingecko.com/api/v3/coins/${coinId}/ohlc?vs_currency=usd&days=${days}`,
-      { next: { revalidate: 30 } }
+    // 1. Find the top pool for this token
+    const poolResp = await fetch(
+      `${BASE}/tokens/${mint}/pools?page=1`,
+      { headers: { Accept: 'application/json' }, next: { revalidate: 60 } }
     );
-
-    if (!res.ok) {
-      throw new Error(`CoinGecko returned ${res.status}`);
+    const poolData = await poolResp.json();
+    
+    if (!poolData.data?.length) {
+      return NextResponse.json({ candles: [], error: 'No pool found' });
     }
 
-    const data = await res.json();
-    cache[cacheKey] = { data, time: now };
+    const poolAddress = poolData.data[0].attributes.address;
 
-    return NextResponse.json(data);
+    // 2. Fetch OHLCV candles
+    // Timeframes: minute (1,5,15), hour (1,4,12), day (1)
+    let endpoint: string;
+    const tfNum = parseInt(tf);
+    if (tfNum < 60) {
+      endpoint = `pools/${poolAddress}/ohlcv/minute?aggregate=${tfNum}&limit=${limit}`;
+    } else if (tfNum < 1440) {
+      endpoint = `pools/${poolAddress}/ohlcv/hour?aggregate=${Math.floor(tfNum / 60)}&limit=${limit}`;
+    } else {
+      endpoint = `pools/${poolAddress}/ohlcv/day?aggregate=1&limit=${limit}`;
+    }
+
+    const ohlcvResp = await fetch(
+      `${BASE}/${endpoint}`,
+      { headers: { Accept: 'application/json' }, next: { revalidate: 15 } }
+    );
+    const ohlcvData = await ohlcvResp.json();
+
+    const rawCandles = ohlcvData.data?.attributes?.ohlcv_list || [];
+    
+    // GeckoTerminal format: [timestamp, open, high, low, close, volume]
+    // Sort ascending by time
+    const candles = rawCandles
+      .map((c: number[]) => ({
+        time: c[0],
+        open: c[1],
+        high: c[2],
+        low: c[3],
+        close: c[4],
+        volume: c[5],
+      }))
+      .sort((a: any, b: any) => a.time - b.time);
+
+    return NextResponse.json({
+      candles,
+      pool: poolAddress,
+      count: candles.length,
+      source: 'geckoterminal',
+    });
   } catch (error) {
-    console.error('Candle fetch error:', error);
-    if (cache[cacheKey]) {
-      return NextResponse.json(cache[cacheKey].data);
-    }
-    return NextResponse.json([], { status: 502 });
+    return NextResponse.json({ candles: [], error: String(error) });
   }
 }

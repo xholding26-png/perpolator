@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { cn, shortenAddress } from '@/lib/utils';
 import { useAppStore } from '@/lib/store';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
@@ -15,6 +15,7 @@ const NAV_LINKS = [
   { href: '/portfolio', label: 'Portfolio' },
   { href: '/leaderboard', label: 'Leaderboard' },
   { href: '/stake', label: 'Stake' },
+  { href: '/docs', label: 'Docs' },
 ];
 
 export default function Navbar() {
@@ -43,8 +44,60 @@ export default function Navbar() {
           ))}
         </div>
       </div>
-      <ConnectButton />
+      <div className="flex items-center gap-3">
+        <NetworkSelector />
+        <ConnectButton />
+      </div>
     </nav>
+  );
+}
+
+function NetworkSelector() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 text-xs border border-white/[0.06] px-3 py-1.5 hover:bg-white/[0.04] transition-colors font-mono"
+      >
+        <span className="w-2 h-2 rounded-full bg-[#0ecb81] animate-pulse" />
+        <span className="text-white">Devnet</span>
+        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className="ml-1">
+          <path d="M1 1L5 5L9 1" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-44 border border-white/[0.06] bg-[#0b0b0e] z-50 shadow-xl">
+          <button
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-mono text-white bg-white/[0.04]"
+            onClick={() => setOpen(false)}
+          >
+            <span className="w-2 h-2 rounded-full bg-[#0ecb81]" />
+            Devnet
+            <span className="ml-auto text-[#0ecb81]">✓</span>
+          </button>
+          <button
+            disabled
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-mono text-[#444] cursor-not-allowed"
+          >
+            <span className="w-2 h-2 rounded-full bg-[#333]" />
+            Mainnet
+            <span className="ml-auto text-[10px] text-[#444]">Soon</span>
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 

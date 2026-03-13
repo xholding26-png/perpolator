@@ -126,9 +126,13 @@ export default function MarketsPage() {
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center text-[10px] font-mono text-[#666]">
-                          {market.symbol.split('-')[0].slice(0, 3)}
-                        </div>
+                        {market.image ? (
+                          <img src={market.image} alt={market.symbol} className="w-8 h-8 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center text-[10px] font-mono text-[#666]">
+                            {market.symbol.split('-')[0].slice(0, 3)}
+                          </div>
+                        )}
                         <div>
                           <div className="text-sm font-mono text-white">{market.symbol}</div>
                           <div className="text-[10px] text-[#666]">{market.name}</div>

@@ -76,44 +76,12 @@ export default function Home() {
         </div>
       </div>
 
-      {/* How It Works */}
-      <div className="border-b border-white/[0.06] py-16">
-        <div className="max-w-5xl mx-auto px-6">
-          <h2 className="text-2xl font-mono font-bold text-white text-center mb-12">
-            How It Works
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="text-4xl mb-4">🎯</div>
-              <h3 className="font-mono text-white font-bold mb-2">1. Pick Any Token</h3>
-              <p className="text-sm text-[#666]">
-                Any SPL token with on-chain liquidity. PumpSwap, Raydium, Meteora — we read the price directly from DEX pools.
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl mb-4">⚡</div>
-              <h3 className="font-mono text-white font-bold mb-2">2. Launch Market</h3>
-              <p className="text-sm text-[#666]">
-                Set leverage, fees, and deposit seed liquidity. Your market goes live instantly with vAMM auto-liquidity.
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl mb-4">📈</div>
-              <h3 className="font-mono text-white font-bold mb-2">3. Trade Perps</h3>
-              <p className="text-sm text-[#666]">
-                Up to 20x leverage. Coin-margined. Keeper bots handle funding, liquidations, and oracle updates.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Features */}
       <div className="border-b border-white/[0.06] py-16">
         <div className="max-w-5xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-6">
           {[
             ['Permissionless', 'Anyone can launch'],
-            ['DEX Oracle', 'No Pyth needed'],
+            ['8% Creator Fee', 'Earn on every trade'],
             ['vAMM', 'Auto liquidity'],
             ['On-chain', 'Fully verifiable'],
           ].map(([title, sub]) => (
