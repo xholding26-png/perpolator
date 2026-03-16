@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 
 // Set this when the token is launched — replace with actual CA
-const TOKEN_CA: string = '';
+const TOKEN_CA: string = '5UCNsNY2oHDB7i2m8bW7nKJXxRoh5WS4N4xKmUB2pump';
 const TOKEN_TICKER: string = '$PERP';
 
 export default function Footer() {
