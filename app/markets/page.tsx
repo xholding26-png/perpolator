@@ -104,8 +104,8 @@ export default function MarketsPage() {
             </Link>
           </div>
         ) : (
-          <div className="border border-white/[0.06]">
-            <table className="w-full">
+          <div className="border border-white/[0.06] overflow-x-auto">
+            <table className="w-full min-w-0">
               <thead>
                 <tr className="text-[10px] text-[#666] uppercase tracking-wider border-b border-white/[0.06]">
                   <th className="text-left px-4 py-3 font-normal">Market</th>
@@ -146,21 +146,21 @@ export default function MarketsPage() {
                       {market.change24h !== 0 ? formatPercent(market.change24h) : '—'}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-sm text-[#666] hidden md:table-cell">
-                      {market.volume24h > 0 ? formatUsd(market.volume24h) : '—'}
+                      {formatUsd(market.volume24h)}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-sm text-[#666] hidden lg:table-cell">
-                      {market.openInterest > 0 ? formatUsd(market.openInterest) : '—'}
+                      {formatUsd(market.openInterest)}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-sm text-[#666] hidden lg:table-cell">
                       {market.maxLeverage}x
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-sm text-[#666] hidden md:table-cell">
-                      {market.traders > 0 ? market.traders : '—'}
+                      {market.traders}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-2 py-3 text-right">
                       <Link
                         href={`/trade/${market.id}`}
-                        className="text-xs font-mono border border-white/[0.06] px-3 py-1 hover:bg-white/[0.04] transition-colors"
+                        className="text-xs font-mono bg-white/[0.06] border border-white/[0.1] px-3 py-1.5 hover:bg-white/[0.1] transition-colors whitespace-nowrap"
                       >
                         Trade →
                       </Link>

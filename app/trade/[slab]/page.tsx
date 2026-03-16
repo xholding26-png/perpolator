@@ -11,12 +11,15 @@ import PositionsTable from '@/components/PositionsTable';
 import TradingChart from '@/components/TradingChart';
 import type { Market } from '@/lib/types';
 
+type MobileTab = 'chart' | 'order' | 'book' | 'positions';
+
 export default function TradePage({ params }: { params: Promise<{ slab: string }> }) {
   const { slab } = use(params);
   const { selectedMarket, setSelectedMarket } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [tokenMeta, setTokenMeta] = useState<{ name: string; symbol: string; image: string } | null>(null);
+  const [mobileTab, setMobileTab] = useState<MobileTab>('chart');
 
   // Fetch market from on-chain
   useEffect(() => {
@@ -153,8 +156,53 @@ export default function TradePage({ params }: { params: Promise<{ slab: string }
         </div>
       </div>
 
-      {/* 3-column layout */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Mobile tabs */}
+      <div className="flex md:hidden border-b border-white/[0.06]">
+        {(['chart', 'order', 'book', 'positions'] as MobileTab[]).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setMobileTab(tab)}
+            className={cn(
+              'flex-1 py-2.5 text-[10px] uppercase tracking-wider font-mono transition-colors',
+              mobileTab === tab
+                ? 'text-white border-b-2 border-white'
+                : 'text-[#555] hover:text-white'
+            )}
+          >
+            {tab === 'book' ? 'Orderbook' : tab === 'order' ? 'Trade' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* Mobile content */}
+      <div className="flex-1 flex flex-col md:hidden overflow-hidden">
+        {mobileTab === 'chart' && (
+          <div className="flex-1 min-h-[300px]">
+            <TradingChart market={m} />
+          </div>
+        )}
+        {mobileTab === 'order' && (
+          <div className="flex-1 overflow-y-auto">
+            <OrderEntry market={m} />
+          </div>
+        )}
+        {mobileTab === 'book' && (
+          <div className="flex-1 overflow-y-auto">
+            <Orderbook market={m} />
+            <div className="border-t border-white/[0.06]">
+              <RecentTrades market={m} />
+            </div>
+          </div>
+        )}
+        {mobileTab === 'positions' && (
+          <div className="flex-1 overflow-y-auto">
+            <PositionsTable />
+          </div>
+        )}
+      </div>
+
+      {/* Desktop 3-column layout */}
+      <div className="hidden md:flex flex-1 overflow-hidden">
         {/* Left: Orderbook + Recent Trades */}
         <div className="hidden lg:flex flex-col w-[280px] border-r border-white/[0.06] overflow-y-auto">
           <div className="flex-1">
@@ -174,7 +222,7 @@ export default function TradePage({ params }: { params: Promise<{ slab: string }
         </div>
 
         {/* Right: Order Entry */}
-        <div className="hidden md:flex flex-col w-[300px] border-l border-white/[0.06]">
+        <div className="flex flex-col w-[300px] border-l border-white/[0.06]">
           <OrderEntry market={m} />
         </div>
       </div>

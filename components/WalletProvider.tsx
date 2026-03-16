@@ -1,5 +1,8 @@
 'use client';
 
+// Buffer polyfill must load before Solana libs
+import '@/lib/polyfills';
+
 import { useMemo, ReactNode } from 'react';
 import { ConnectionProvider, WalletProvider as SolanaWalletProvider } from '@solana/wallet-adapter-react';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
