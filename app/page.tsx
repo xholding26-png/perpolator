@@ -117,6 +117,17 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Audit Banner */}
+      <div className="border-y border-[#0ecb81]/20 bg-[#0ecb81]/[0.04]">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-center gap-3">
+          <div className="w-2 h-2 rounded-full bg-[#0ecb81] animate-pulse" />
+          <p className="font-mono text-sm text-[#0ecb81]">
+            Trading opens after smart contract audit is complete.
+            <span className="text-[#555] ml-2">Audit in progress.</span>
+          </p>
+        </div>
+      </div>
+
       {/* Stats bar */}
       <div className="border-y border-white/[0.06]">
         <div className="max-w-4xl mx-auto grid grid-cols-3 divide-x divide-white/[0.06]">
